@@ -17,20 +17,32 @@ module GTalk
   class Bot
     include Jabber
     attr_reader :email, :password
-    attr_reader :jabber_client, :jid
+    attr_reader :jabber_client, :jid, :contacts
 
     def initialize(account_data)
       @email = account_data[:email]
       @password = account_data[:password]
+      @status_message = account_data[:status_message] || "Online"
+
+      @contacts = []
 
       @jid = JID::new(self.email)
       @jabber_client = Client.new(self.jid)
     end
 
-    def get_online(host="talk.google.com")
+    def get_online(host=nil)
       self.jabber_client.connect(host)
       self.jabber_client.auth(self.password)
       self.jabber_client.send(Presence.new.set_type(:available))
+      self.get_contacts
+    end
+
+    def contact_list
+      @contacts
+    end
+
+    def in_contact_list?(email)
+      @contacts.include?(email)
     end
 
     def invite(invitee)
@@ -62,10 +74,21 @@ module GTalk
       end
     end
 
-  protected
+    protected
 
     def roster
       @roster ||= Roster::Helper.new(self.jabber_client)
+      @roster.get_roster
+      @roster.wait_for_roster
+
+      sleep 5
+      @roster
+    end
+
+    def get_contacts
+      self.roster.items.each do |i|
+        @contacts.push(i.first.to_s)
+      end
     end
   end
 end
